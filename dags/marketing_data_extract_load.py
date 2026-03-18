@@ -1,12 +1,7 @@
 """
-Phase 1: Extract & Load DAG
-Simple data pipeline that generates synthetic data and prepares it for transformation.
-
-This DAG demonstrates:
-- DAG structure and task dependencies
-- BashOperator for running Python scripts
-- Python operators for data validation
-- Error handling and retry logic
+Phase 1 + 3: Extract, Load, and Transform DAG
+Generates synthetic marketing data, loads it to BigQuery raw layer,
+then triggers dbt to build staging views and mart tables.
 """
 
 from datetime import datetime, timedelta
@@ -16,6 +11,9 @@ from airflow.operators.python import PythonOperator
 from airflow.utils.dates import days_ago
 import pandas as pd
 from pathlib import Path
+import sys
+
+sys.path.insert(0, "/home/airflow/scripts")
 
 
 # Default DAG arguments
@@ -119,5 +117,26 @@ summarize_data_task = PythonOperator(
     dag=dag,
 )
 
+# Task 4: Load CSVs to BigQuery raw layer
+load_to_bq = PythonOperator(
+    task_id='load_to_bigquery',
+    python_callable=lambda **ctx: __import__('load_to_bigquery', fromlist=['']).load_all(**ctx),
+    dag=dag,
+)
+
+# Task 5: Run dbt models (staging views + mart tables)
+dbt_run = BashOperator(
+    task_id='dbt_run',
+    bash_command='cd /home/airflow/dbt/marketing_analytics && dbt run --profiles-dir /home/airflow/.dbt',
+    dag=dag,
+)
+
+# Task 6: Run dbt tests
+dbt_test = BashOperator(
+    task_id='dbt_test',
+    bash_command='cd /home/airflow/dbt/marketing_analytics && dbt test --profiles-dir /home/airflow/.dbt',
+    dag=dag,
+)
+
 # Define task dependencies
-generate_data >> validate_files >> summarize_data_task
+generate_data >> validate_files >> summarize_data_task >> load_to_bq >> dbt_run >> dbt_test

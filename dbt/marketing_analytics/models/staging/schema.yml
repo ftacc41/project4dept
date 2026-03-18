@@ -1,0 +1,58 @@
+version: 2
+
+sources:
+  - name: raw
+    database: airflow-marketing-analytics
+    schema: raw
+    tables:
+      - name: customers
+      - name: orders
+      - name: events
+      - name: churn_labels
+
+models:
+  - name: stg_customers
+    description: Cleaned and standardized customers
+    columns:
+      - name: customer_id
+        tests: [unique, not_null]
+      - name: email
+        tests: [not_null]
+      - name: segment
+        tests:
+          - accepted_values:
+              values: ['enterprise', 'smb', 'consumer', 'startup']
+      - name: signup_date
+        tests: [not_null]
+
+  - name: stg_orders
+    description: Cleaned and standardized orders
+    columns:
+      - name: order_id
+        tests: [unique, not_null]
+      - name: customer_id
+        tests: [not_null]
+      - name: order_amount
+        tests: [not_null]
+      - name: status
+        tests:
+          - accepted_values:
+              values: ['completed', 'pending', 'cancelled', 'refunded']
+
+  - name: stg_events
+    description: Cleaned and standardized marketing events
+    columns:
+      - name: event_id
+        tests: [unique, not_null]
+      - name: customer_id
+        tests: [not_null]
+      - name: event_type
+        tests: [not_null]
+
+  - name: stg_churn_labels
+    description: Cleaned churn labels and probabilities
+    columns:
+      - name: customer_id
+        tests: [unique, not_null]
+      - name: churn_probability
+        tests: [not_null]

@@ -1,0 +1,36 @@
+version: 2
+
+models:
+  - name: mart_customer_ltv
+    description: Customer lifetime value with revenue, order history, and churn risk
+    columns:
+      - name: customer_id
+        tests: [unique, not_null]
+      - name: total_revenue
+        tests: [not_null]
+      - name: net_ltv
+        tests: [not_null]
+      - name: churn_probability
+        tests: [not_null]
+
+  - name: mart_churn_summary
+    description: Churn rates and revenue at risk aggregated by segment and region
+    columns:
+      - name: segment
+        tests: [not_null]
+      - name: region
+        tests: [not_null]
+      - name: churn_rate_pct
+        tests: [not_null]
+      - name: revenue_at_risk
+        tests: [not_null]
+
+  - name: mart_campaign_performance
+    description: Campaign-level performance with CTR, conversions, and attributed revenue
+    columns:
+      - name: campaign_id
+        tests: [unique, not_null]
+      - name: total_impressions
+        tests: [not_null]
+      - name: attributed_revenue
+        tests: [not_null]

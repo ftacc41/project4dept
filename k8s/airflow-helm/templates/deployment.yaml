@@ -70,6 +70,8 @@ spec:
               value: {{ .Values.airflow.dbConnection }}
             - name: AIRFLOW__WEBSERVER__WEB_SERVER_PORT
               value: "{{ .Values.webserver.service.port }}"
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /home/airflow/.gcp/key.json
             {{- range $key, $value := .Values.config }}
             - name: {{ $key }}
               value: "{{ $value }}"
@@ -93,9 +95,15 @@ spec:
           volumeMounts:
             - name: logs
               mountPath: /home/airflow/airflow/logs
+            - name: gcp-key
+              mountPath: /home/airflow/.gcp
+              readOnly: true
       volumes:
         - name: logs
           emptyDir: {}
+        - name: gcp-key
+          secret:
+            secretName: airflow-gcp-key
 {{- end }}
 
 {{- if .Values.scheduler.replicas }}
@@ -148,6 +156,8 @@ spec:
               value: {{ .Values.airflow.fernetKey }}
             - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
               value: {{ .Values.airflow.dbConnection }}
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /home/airflow/.gcp/key.json
             {{- range $key, $value := .Values.config }}
             - name: {{ $key }}
               value: "{{ $value }}"
@@ -157,7 +167,13 @@ spec:
           volumeMounts:
             - name: logs
               mountPath: /home/airflow/airflow/logs
+            - name: gcp-key
+              mountPath: /home/airflow/.gcp
+              readOnly: true
       volumes:
         - name: logs
           emptyDir: {}
+        - name: gcp-key
+          secret:
+            secretName: airflow-gcp-key
 {{- end }}

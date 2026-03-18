@@ -39,7 +39,12 @@ ENV AIRFLOW_HOME=/home/airflow/airflow
 COPY --chown=airflow:airflow dags/ /home/airflow/airflow/dags/
 COPY --chown=airflow:airflow plugins/ /home/airflow/airflow/plugins/
 COPY --chown=airflow:airflow scripts/ /home/airflow/scripts/
+COPY --chown=airflow:airflow dbt/ /home/airflow/dbt/
 COPY --chown=airflow:airflow .env* /home/airflow/airflow/
+
+# dbt profiles — GCP key is mounted at runtime via K8s secret
+RUN mkdir -p /home/airflow/.dbt /home/airflow/.gcp
+COPY --chown=airflow:airflow dbt/profiles.yml /home/airflow/.dbt/profiles.yml
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
