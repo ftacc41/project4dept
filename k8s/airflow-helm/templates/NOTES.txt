@@ -1,0 +1,27 @@
+Airflow has been deployed to Kubernetes!
+
+🚀 Quick Start:
+  1. Port forward to access webserver:
+     kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "airflow-helm.fullname" . }}-webserver 8080:8080
+
+  2. Open Airflow UI: http://localhost:8080
+     Username: admin
+     Password: admin
+
+📊 Check deployment status:
+  kubectl get pods -n {{ .Release.Namespace }}
+
+🔧 Useful commands:
+  # View logs
+  kubectl logs -n {{ .Release.Namespace }} deployment/{{ include "airflow-helm.fullname" . }}-webserver
+
+  # Scale scheduler
+  kubectl scale deployment {{ include "airflow-helm.fullname" . }}-scheduler --replicas=2 -n {{ .Release.Namespace }}
+
+  # Delete deployment
+  helm uninstall airflow -n {{ .Release.Namespace }}
+
+🎯 Next Steps:
+  - Configure external database (PostgreSQL/Redis)
+  - Set up monitoring (Prometheus/Grafana)
+  - Configure ingress for external access

@@ -1,0 +1,163 @@
+{{- if .Values.webserver.replicas }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "airflow-helm.fullname" . }}-webserver
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "airflow-helm.labels" . | nindent 4 }}
+    component: webserver
+spec:
+  replicas: {{ .Values.webserver.replicas }}
+  selector:
+    matchLabels:
+      {{- include "airflow-helm.selectorLabels" . | nindent 6 }}
+      component: webserver
+  template:
+    metadata:
+      labels:
+        {{- include "airflow-helm.labels" . | nindent 8 }}
+        component: webserver
+    spec:
+      serviceAccountName: {{ include "airflow-helm.serviceAccountName" . }}
+      initContainers:
+        - name: db-init
+          image: "{{ .Values.airflow.image.repository }}:{{ .Values.airflow.image.tag }}"
+          imagePullPolicy: {{ .Values.airflow.image.pullPolicy }}
+          command: ["bash", "-c"]
+          args:
+            - |
+              for i in $(seq 1 30); do
+                airflow db check && break
+                echo "Waiting for database... attempt $i"
+                sleep 5
+              done
+              airflow db init
+              airflow users create \
+                --username admin \
+                --password admin \
+                --firstname Admin \
+                --lastname User \
+                --role Admin \
+                --email admin@example.com || true
+          env:
+            - name: AIRFLOW__CORE__EXECUTOR
+              value: {{ .Values.airflow.executor }}
+            - name: AIRFLOW__CORE__FERNET_KEY
+              value: {{ .Values.airflow.fernetKey }}
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
+              value: {{ .Values.airflow.dbConnection }}
+            {{- range $key, $value := .Values.config }}
+            - name: {{ $key }}
+              value: "{{ $value }}"
+            {{- end }}
+      containers:
+        - name: webserver
+          image: "{{ .Values.airflow.image.repository }}:{{ .Values.airflow.image.tag }}"
+          imagePullPolicy: {{ .Values.airflow.image.pullPolicy }}
+          command: ["airflow", "webserver"]
+          ports:
+            - name: http
+              containerPort: {{ .Values.webserver.service.port }}
+              protocol: TCP
+          env:
+            - name: AIRFLOW__CORE__EXECUTOR
+              value: {{ .Values.airflow.executor }}
+            - name: AIRFLOW__CORE__FERNET_KEY
+              value: {{ .Values.airflow.fernetKey }}
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
+              value: {{ .Values.airflow.dbConnection }}
+            - name: AIRFLOW__WEBSERVER__WEB_SERVER_PORT
+              value: "{{ .Values.webserver.service.port }}"
+            {{- range $key, $value := .Values.config }}
+            - name: {{ $key }}
+              value: "{{ $value }}"
+            {{- end }}
+          resources:
+            {{- toYaml .Values.webserver.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 5
+          volumeMounts:
+            - name: logs
+              mountPath: /home/airflow/airflow/logs
+      volumes:
+        - name: logs
+          emptyDir: {}
+{{- end }}
+
+{{- if .Values.scheduler.replicas }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "airflow-helm.fullname" . }}-scheduler
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "airflow-helm.labels" . | nindent 4 }}
+    component: scheduler
+spec:
+  replicas: {{ .Values.scheduler.replicas }}
+  selector:
+    matchLabels:
+      {{- include "airflow-helm.selectorLabels" . | nindent 6 }}
+      component: scheduler
+  template:
+    metadata:
+      labels:
+        {{- include "airflow-helm.labels" . | nindent 8 }}
+        component: scheduler
+    spec:
+      serviceAccountName: {{ include "airflow-helm.serviceAccountName" . }}
+      initContainers:
+        - name: wait-for-db
+          image: "{{ .Values.airflow.image.repository }}:{{ .Values.airflow.image.tag }}"
+          imagePullPolicy: {{ .Values.airflow.image.pullPolicy }}
+          command: ["bash", "-c"]
+          args:
+            - |
+              for i in $(seq 1 30); do
+                airflow db check && break
+                echo "Waiting for database... attempt $i"
+                sleep 5
+              done
+          env:
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
+              value: {{ .Values.airflow.dbConnection }}
+      containers:
+        - name: scheduler
+          image: "{{ .Values.airflow.image.repository }}:{{ .Values.airflow.image.tag }}"
+          imagePullPolicy: {{ .Values.airflow.image.pullPolicy }}
+          command: ["airflow", "scheduler"]
+          env:
+            - name: AIRFLOW__CORE__EXECUTOR
+              value: {{ .Values.airflow.executor }}
+            - name: AIRFLOW__CORE__FERNET_KEY
+              value: {{ .Values.airflow.fernetKey }}
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
+              value: {{ .Values.airflow.dbConnection }}
+            {{- range $key, $value := .Values.config }}
+            - name: {{ $key }}
+              value: "{{ $value }}"
+            {{- end }}
+          resources:
+            {{- toYaml .Values.scheduler.resources | nindent 12 }}
+          volumeMounts:
+            - name: logs
+              mountPath: /home/airflow/airflow/logs
+      volumes:
+        - name: logs
+          emptyDir: {}
+{{- end }}

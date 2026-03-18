@@ -1,0 +1,23 @@
+apiVersion: v2
+name: airflow-helm
+description: Apache Airflow with Kubernetes Executor for Marketing Analytics Platform
+
+type: application
+
+version: 0.1.0
+
+appVersion: "2.8.1"
+
+keywords:
+  - airflow
+  - data-engineering
+  - kubernetes
+  - marketing-analytics
+
+home: https://airflow.apache.org/
+sources:
+  - https://github.com/apache/airflow
+
+maintainers:
+  - name: Data Engineering Team
+    email: admin@example.com

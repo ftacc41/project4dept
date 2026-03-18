@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "airflow-helm.fullname" . }}-webserver
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "airflow-helm.labels" . | nindent 4 }}
+    component: webserver
+spec:
+  type: {{ .Values.webserver.service.type }}
+  ports:
+    - port: {{ .Values.webserver.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "airflow-helm.selectorLabels" . | nindent 4 }}
+    component: webserver

@@ -1,0 +1,50 @@
+# Project tracking (local only, not versioned)
+.PROJECT_CONTEXT.md
+.PROJECT_PROGRESS.md
+
+# Environment
+.env
+.env.local
+.venv/
+venv/
+env/
+
+# Airflow
+airflow.db
+logs/
+plugins/__pycache__/
+dags/__pycache__/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Docker
+.docker/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data (optional)
+data/
+*.csv
+*.parquet
+
+# ML models
+*.pkl
+*.joblib
+models/artifacts/
+
+# BigQuery
+*.json  # Don't commit service account keys
