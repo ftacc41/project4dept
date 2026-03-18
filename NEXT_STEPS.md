@@ -1,45 +1,36 @@
 # Next Steps (Resume Checklist)
 
-This file is a quick reference to pick up development where you left off.
-
 ## ✅ Completed
 - [x] Phase 1: Local Airflow + Docker (completed)
-- [x] Phase 2: Helm chart created and templated (validated)
+- [x] Phase 2: Helm chart created and deployed to Minikube (LocalExecutor + in-cluster Postgres)
+- [x] Phase 3: BigQuery + dbt integration (completed)
 
-## ▶️ Next: Verify Webserver is Healthy (Phase 2 Validation)
+## Phase 3 — What was built
 
-Helm install succeeded. Postgres ✅ Scheduler ✅ Webserver was starting when session ended.
+### Infrastructure
+- GCP project: `airflow-marketing-analytics`
+- BQ datasets: `raw`, `staging`, `marts` (US region)
+- Service account: `airflow-dbt-sa` — key stored as K8s secret `airflow-gcp-key`
+- dbt installed in isolated venv at `/home/airflow/dbt-venv` (avoids Airflow dep conflicts)
 
-1. Check pod status:
-   ```bash
-   kubectl get pods -n airflow-project
-   ```
-2. If webserver is still crashing, check logs:
-   ```bash
-   kubectl logs -n airflow-project deployment/airflow-airflow-helm-webserver
-   ```
-3. Once webserver is `Running` + `READY 1/1`, port-forward:
-   ```bash
-   kubectl port-forward -n airflow-project svc/airflow-airflow-helm-webserver 8080:8080
-   ```
-4. Open http://localhost:8080 — admin / admin
+### dbt project: `dbt/marketing_analytics/`
+- **Staging views** (in `staging` dataset): stg_customers, stg_orders, stg_events, stg_churn_labels
+- **Mart tables** (in `marts` dataset): mart_customer_ltv, mart_churn_summary, mart_campaign_performance
+- 30 schema tests, all passing
 
-## ✅ After Deployment (Validation)
-- [ ] Confirm all 3 pods Running (postgres, scheduler, webserver)
-- [ ] Trigger `marketing_data_extract_load` DAG from UI
-- [ ] Confirm tasks complete successfully
-- [ ] Confirm data files appear in `/tmp/airflow_data/` inside container
+### DAG: `marketing_data_extract_load`
+generate_synthetic_data → validate_data_files → summarize_data → load_to_bigquery → dbt_run → dbt_test
 
-### Key fixes made this session (context for debugging)
-- Switched `KubernetesExecutor` → `LocalExecutor` (K8s executor needs shared PVC/git-sync, too complex for local demo)
-- Added in-cluster Postgres (`k8s/airflow-helm/templates/postgres.yaml`)
-- Replaced `hostPath` volumes with `emptyDir` (Minikube Docker driver can't access Mac filesystem)
-- Fixed DAGs path: `/home/airflow/airflow/dags` (matches `AIRFLOW_HOME` in Dockerfile)
-- Added `db-init` init container (runs `airflow db init` + creates admin user)
-- Reduced gunicorn workers to 1, timeout to 300s (gunicorn was timing out on limited Minikube resources)
-- Bumped webserver memory limit to 1Gi
+## 🔜 Next: Phase 4 — ML Scoring
 
-## 🔜 Next Major Phase (Phase 3)
-- Setup BigQuery (or DuckDB) and dbt
-- Create dbt models + schema tests
-- Add dbt run to Airflow DAG
+Options:
+1. Train a churn model on `mart_customer_ltv` data (scikit-learn / XGBoost)
+2. Score customers and write predictions back to BQ (`marts.ml_churn_predictions`)
+3. Add `ml_score` task to the DAG after `dbt_test`
+4. Optionally retrain on schedule vs. score-only each run
+
+## Key debugging notes (for context)
+- Scheduler needs 1Gi memory limit (512Mi OOMKills when forking LocalExecutor tasks)
+- dbt first-run BQ auth takes ~20s before output — Airflow retry handles this
+- `mart_campaign_performance` grain is (campaign_id, channel), not campaign_id alone
+- `gcloud` needs `CLOUDSDK_PYTHON=/opt/homebrew/bin/python3.13` on this machine
