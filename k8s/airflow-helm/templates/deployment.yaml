@@ -170,10 +170,15 @@ spec:
             - name: gcp-key
               mountPath: /home/airflow/.gcp
               readOnly: true
+            - name: ml-models
+              mountPath: /home/airflow/models
       volumes:
         - name: logs
           emptyDir: {}
         - name: gcp-key
           secret:
             secretName: airflow-gcp-key
+        - name: ml-models
+          persistentVolumeClaim:
+            claimName: ml-models-pvc
 {{- end }}

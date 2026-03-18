@@ -138,5 +138,12 @@ dbt_test = BashOperator(
     dag=dag,
 )
 
+# Task 7: Score customers using trained churn model → writes to marts.ml_churn_predictions
+ml_score = PythonOperator(
+    task_id='ml_churn_score',
+    python_callable=lambda **ctx: __import__('score_churn_model', fromlist=['']).score(**ctx),
+    dag=dag,
+)
+
 # Define task dependencies
-generate_data >> validate_files >> summarize_data_task >> load_to_bq >> dbt_run >> dbt_test
+generate_data >> validate_files >> summarize_data_task >> load_to_bq >> dbt_run >> dbt_test >> ml_score
