@@ -66,10 +66,10 @@ scheduler:
   replicas: 1
   resources:
     requests:
-      memory: "512Mi"
+      memory: "768Mi"
       cpu: "250m"
     limits:
-      memory: "1Gi"
+      memory: "1536Mi"
       cpu: "500m"
 
 # Worker Configuration (for Kubernetes Executor)
