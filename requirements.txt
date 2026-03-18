@@ -13,14 +13,10 @@ numpy==1.24.3
 scikit-learn==1.3.2
 xgboost==1.7.6
 
-# dbt (Phase 3)
-dbt-core==1.11.0b3
-dbt-bigquery==1.10.2
-
 # Data quality (Phase 5)
 great-expectations==0.18.5
 
-# BigQuery (Phase 3)
+# BigQuery (Phase 3) — dbt-bigquery is installed in a separate venv (see Dockerfile)
 google-cloud-bigquery==3.40.1
 
 # Utilities

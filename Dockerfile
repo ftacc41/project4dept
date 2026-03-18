@@ -30,10 +30,15 @@ USER airflow
 # Copy Python packages from builder
 COPY --from=builder /home/airflow/.local /home/airflow/.local
 
+# Install dbt-bigquery in an isolated venv to avoid Airflow dependency conflicts
+RUN python -m venv /home/airflow/dbt-venv \
+    && /home/airflow/dbt-venv/bin/pip install --no-cache-dir dbt-bigquery
+
 # Set environment variables
 ENV PATH=/home/airflow/.local/bin:$PATH
 ENV PYTHONPATH=/home/airflow/plugins:$PYTHONPATH
 ENV AIRFLOW_HOME=/home/airflow/airflow
+ENV DBT_BIN=/home/airflow/dbt-venv/bin/dbt
 
 # Copy project files
 COPY --chown=airflow:airflow dags/ /home/airflow/airflow/dags/

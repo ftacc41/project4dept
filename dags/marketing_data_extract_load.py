@@ -127,14 +127,14 @@ load_to_bq = PythonOperator(
 # Task 5: Run dbt models (staging views + mart tables)
 dbt_run = BashOperator(
     task_id='dbt_run',
-    bash_command='cd /home/airflow/dbt/marketing_analytics && dbt run --profiles-dir /home/airflow/.dbt',
+    bash_command='cd /home/airflow/dbt/marketing_analytics && /home/airflow/dbt-venv/bin/dbt run --profiles-dir /home/airflow/.dbt',
     dag=dag,
 )
 
 # Task 6: Run dbt tests
 dbt_test = BashOperator(
     task_id='dbt_test',
-    bash_command='cd /home/airflow/dbt/marketing_analytics && dbt test --profiles-dir /home/airflow/.dbt',
+    bash_command='cd /home/airflow/dbt/marketing_analytics && /home/airflow/dbt-venv/bin/dbt test --profiles-dir /home/airflow/.dbt',
     dag=dag,
 )
 
