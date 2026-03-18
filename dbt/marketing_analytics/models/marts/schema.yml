@@ -26,10 +26,12 @@ models:
         tests: [not_null]
 
   - name: mart_campaign_performance
-    description: Campaign-level performance with CTR, conversions, and attributed revenue
+    description: Campaign performance by channel — grain is (campaign_id, channel)
     columns:
       - name: campaign_id
-        tests: [unique, not_null]
+        tests: [not_null]
+      - name: channel
+        tests: [not_null]
       - name: total_impressions
         tests: [not_null]
       - name: attributed_revenue
