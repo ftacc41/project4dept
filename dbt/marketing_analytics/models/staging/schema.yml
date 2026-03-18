@@ -21,7 +21,8 @@ models:
       - name: segment
         tests:
           - accepted_values:
-              values: ['enterprise', 'smb', 'consumer', 'startup']
+              arguments:
+                values: ['enterprise', 'smb', 'consumer', 'startup']
       - name: signup_date
         tests: [not_null]
 
@@ -37,7 +38,8 @@ models:
       - name: status
         tests:
           - accepted_values:
-              values: ['completed', 'pending', 'cancelled', 'refunded']
+              arguments:
+                values: ['completed', 'pending', 'cancelled', 'refunded']
 
   - name: stg_events
     description: Cleaned and standardized marketing events
