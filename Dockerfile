@@ -31,8 +31,9 @@ USER airflow
 COPY --from=builder /home/airflow/.local /home/airflow/.local
 
 # Install dbt-bigquery in an isolated venv to avoid Airflow dependency conflicts
+# PIP_USER=false overrides the base image's global --user flag, which is invalid inside a venv
 RUN python -m venv /home/airflow/dbt-venv \
-    && /home/airflow/dbt-venv/bin/pip install --no-cache-dir dbt-bigquery
+    && PIP_USER=false /home/airflow/dbt-venv/bin/pip install --no-cache-dir dbt-bigquery
 
 # Set environment variables
 ENV PATH=/home/airflow/.local/bin:$PATH
