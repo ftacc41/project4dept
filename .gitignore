@@ -1,6 +1,7 @@
 # Project tracking (local only, not versioned)
 .PROJECT_CONTEXT.md
 .PROJECT_PROGRESS.md
+NEXT_STEPS.md
 
 # Environment
 .env
