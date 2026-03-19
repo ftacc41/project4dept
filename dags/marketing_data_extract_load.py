@@ -117,28 +117,42 @@ summarize_data_task = PythonOperator(
     dag=dag,
 )
 
-# Task 4: Load CSVs to BigQuery raw layer
+# Task 4: GE Layer A — validate raw CSVs before loading to BigQuery
+dq_validate_raw = PythonOperator(
+    task_id='dq_validate_raw',
+    python_callable=lambda **ctx: __import__('validate_raw_data', fromlist=['']).validate(**ctx),
+    dag=dag,
+)
+
+# Task 5: Load CSVs to BigQuery raw layer
 load_to_bq = PythonOperator(
     task_id='load_to_bigquery',
     python_callable=lambda **ctx: __import__('load_to_bigquery', fromlist=['']).load_all(**ctx),
     dag=dag,
 )
 
-# Task 5: Run dbt models (staging views + mart tables)
+# Task 6: Run dbt models (staging views + mart tables)
 dbt_run = BashOperator(
     task_id='dbt_run',
     bash_command='cd /home/airflow/dbt/marketing_analytics && /home/airflow/dbt-venv/bin/dbt run --profiles-dir /home/airflow/.dbt',
     dag=dag,
 )
 
-# Task 6: Run dbt tests
+# Task 7: Run dbt tests
 dbt_test = BashOperator(
     task_id='dbt_test',
     bash_command='cd /home/airflow/dbt/marketing_analytics && /home/airflow/dbt-venv/bin/dbt test --profiles-dir /home/airflow/.dbt',
     dag=dag,
 )
 
-# Task 7: Score customers using trained churn model → writes to marts.ml_churn_predictions
+# Task 8: GE Layer C — validate mart tables after dbt runs
+dq_validate_marts = PythonOperator(
+    task_id='dq_validate_marts',
+    python_callable=lambda **ctx: __import__('validate_mart_data', fromlist=['']).validate_marts(**ctx),
+    dag=dag,
+)
+
+# Task 9: Score customers using trained churn model → writes to marts.ml_churn_predictions
 ml_score = PythonOperator(
     task_id='ml_churn_score',
     python_callable=lambda **ctx: __import__('score_churn_model', fromlist=['']).score(**ctx),
@@ -146,4 +160,4 @@ ml_score = PythonOperator(
 )
 
 # Define task dependencies
-generate_data >> validate_files >> summarize_data_task >> load_to_bq >> dbt_run >> dbt_test >> ml_score
+generate_data >> validate_files >> summarize_data_task >> dq_validate_raw >> load_to_bq >> dbt_run >> dbt_test >> dq_validate_marts >> ml_score

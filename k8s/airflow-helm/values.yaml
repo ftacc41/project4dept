@@ -12,8 +12,10 @@ airflow:
   # Executor: Local for Minikube (KubernetesExecutor requires shared PVC/git-sync)
   executor: LocalExecutor
 
-  # Fernet key for encryption (generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
-  fernetKey: "REDACTED_FERNET_KEY"
+  # Fernet key sourced from K8s secret 'airflow-fernet-key' (key: fernet-key)
+  # Generate: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+  # Store:    kubectl create secret generic airflow-fernet-key --from-literal=fernet-key=<key> -n airflow-project
+  fernetKey: ""  # set via secretKeyRef in deployment template
 
   # DB connection string (points to in-cluster postgres)
   dbConnection: "postgresql+psycopg2://airflow:airflow@airflow-postgres:5432/airflow"
