@@ -16,7 +16,14 @@ airflow:
   # Fernet key sourced from K8s secret 'airflow-fernet-key' (key: fernet-key)
   # Generate: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
   # Store:    kubectl create secret generic airflow-fernet-key --from-literal=fernet-key=<key> -n airflow-project
-  fernetKey: ""  # set via secretKeyRef in deployment template
+  fernetKey: ""  # injected via secretKeyRef from K8s secret 'airflow-fernet-key' (key: fernet-key)
+  # Admin credentials injected via secretKeyRef from K8s secret 'airflow-admin-credentials'
+  # Create with:
+  #   kubectl create secret generic airflow-admin-credentials \
+  #     --from-literal=username=<user> \
+  #     --from-literal=password=<pass> \
+  #     --from-literal=email=<email> \
+  #     -n airflow-project
 
   # DB connection string (points to in-cluster postgres)
   dbConnection: "postgresql+psycopg2://airflow:airflow@airflow-postgres:5432/airflow"
@@ -44,6 +51,8 @@ postgresql:
   enabled: true
   database: airflow
   username: airflow
+  # IMPORTANT: override this before deploying to any non-local environment:
+  #   helm upgrade ... --set postgresql.password=<strong-password>
   password: airflow
 
 # Redis Configuration (not needed for LocalExecutor)

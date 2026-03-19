@@ -7,6 +7,7 @@ Run weekly via the ml_churn_train DAG.
 
 import os
 import json
+import hashlib
 import joblib
 import numpy as np
 import pandas as pd
@@ -104,6 +105,11 @@ def train(**context) -> None:
     artifact = {"model": model, "encoders": encoders, "features": ALL_FEATURES}
     joblib.dump(artifact, MODEL_PATH)
     print(f"\n✅ Model saved to {MODEL_PATH}")
+
+    # Write SHA-256 checksum so score_churn_model.py can verify integrity before loading
+    checksum = hashlib.sha256(MODEL_PATH.read_bytes()).hexdigest()
+    (MODEL_DIR / "churn_model.pkl.sha256").write_text(checksum)
+    print(f"✅ Checksum written: {checksum[:16]}...")
 
     # Save metadata for audit trail
     metadata = {

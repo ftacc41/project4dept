@@ -78,7 +78,7 @@ def validate(**context) -> None:
             ("expect_column_values_to_not_be_null", {"column": "order_id"}),
             ("expect_column_values_to_not_be_null", {"column": "customer_id"}),
             ("expect_column_values_to_be_unique", {"column": "order_id"}),
-            ("expect_column_values_to_be_between", {"column": "order_amount", "min_value": 0}),
+            ("expect_column_values_to_be_between", {"column": "order_amount", "min_value": 0, "max_value": 100_000}),
             ("expect_column_values_to_be_in_set", {"column": "status", "value_set": ["completed", "pending", "cancelled", "refunded"]}),
         ],
         "churn_labels": [

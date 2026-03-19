@@ -35,19 +35,37 @@ spec:
               done
               airflow db init
               airflow users create \
-                --username admin \
-                --password admin \
+                --username "$AIRFLOW_ADMIN_USER" \
+                --password "$AIRFLOW_ADMIN_PASSWORD" \
                 --firstname Admin \
                 --lastname User \
                 --role Admin \
-                --email admin@example.com || true
+                --email "$AIRFLOW_ADMIN_EMAIL" || true
           env:
             - name: AIRFLOW__CORE__EXECUTOR
               value: {{ .Values.airflow.executor }}
             - name: AIRFLOW__CORE__FERNET_KEY
-              value: {{ .Values.airflow.fernetKey }}
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-fernet-key
+                  key: fernet-key
             - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
               value: {{ .Values.airflow.dbConnection }}
+            - name: AIRFLOW_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-admin-credentials
+                  key: username
+            - name: AIRFLOW_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-admin-credentials
+                  key: password
+            - name: AIRFLOW_ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-admin-credentials
+                  key: email
             {{- range $key, $value := .Values.config }}
             - name: {{ $key }}
               value: "{{ $value }}"
@@ -65,7 +83,10 @@ spec:
             - name: AIRFLOW__CORE__EXECUTOR
               value: {{ .Values.airflow.executor }}
             - name: AIRFLOW__CORE__FERNET_KEY
-              value: {{ .Values.airflow.fernetKey }}
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-fernet-key
+                  key: fernet-key
             - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
               value: {{ .Values.airflow.dbConnection }}
             - name: AIRFLOW__WEBSERVER__WEB_SERVER_PORT
@@ -153,7 +174,10 @@ spec:
             - name: AIRFLOW__CORE__EXECUTOR
               value: {{ .Values.airflow.executor }}
             - name: AIRFLOW__CORE__FERNET_KEY
-              value: {{ .Values.airflow.fernetKey }}
+              valueFrom:
+                secretKeyRef:
+                  name: airflow-fernet-key
+                  key: fernet-key
             - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
               value: {{ .Values.airflow.dbConnection }}
             - name: GOOGLE_APPLICATION_CREDENTIALS

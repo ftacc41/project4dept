@@ -7,6 +7,7 @@ Run daily via the marketing_data_extract_load DAG after dbt_test.
 
 import os
 import json
+import hashlib
 import joblib
 import pandas as pd
 from pathlib import Path
@@ -52,6 +53,21 @@ def score(**context) -> None:
         raise FileNotFoundError(
             f"No model found at {MODEL_PATH}. Run the ml_churn_train DAG first."
         )
+
+    # Verify SHA-256 checksum before deserializing to guard against tampered model files
+    checksum_path = MODEL_PATH.with_suffix(".pkl.sha256")
+    if not checksum_path.exists():
+        raise FileNotFoundError(
+            f"No checksum file found at {checksum_path}. Retrain the model to generate one."
+        )
+    expected = checksum_path.read_text().strip()
+    actual = hashlib.sha256(MODEL_PATH.read_bytes()).hexdigest()
+    if actual != expected:
+        raise ValueError(
+            f"Model checksum mismatch — file may have been tampered with.\n"
+            f"  Expected: {expected}\n  Got:      {actual}"
+        )
+    print(f"  ✓ Model checksum verified ({actual[:16]}...)")
 
     artifact = joblib.load(MODEL_PATH)
     model = artifact["model"]

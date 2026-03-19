@@ -9,7 +9,6 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator
-from airflow.utils.dates import days_ago
 import pandas as pd
 from pathlib import Path
 import sys
@@ -36,8 +35,7 @@ def sla_miss_callback(dag, task_list, blocking_task_list, slas, blocking_tis):
 default_args = {
     'owner': 'data-engineering',
     'depends_on_past': False,
-    'email': ['admin@example.com'],
-    'email_on_failure': True,
+    'email_on_failure': False,  # no SMTP configured; set to True and add 'email' once SMTP is set up
     'email_on_retry': False,
     'retries': 2,
     'retry_delay': timedelta(minutes=5),
@@ -50,7 +48,7 @@ dag = DAG(
     default_args=default_args,
     description='Phase 1 + 6: Extract, load, transform, and monitor marketing data',
     schedule_interval='@daily',
-    start_date=days_ago(1),
+    start_date=datetime(2024, 1, 1),
     tags=['phase-1', 'extract', 'load', 'monitoring'],
     catchup=False,
     sla_miss_callback=sla_miss_callback,
@@ -79,8 +77,11 @@ def validate_data_files(**context):
         df = pd.read_csv(file_path)
         print(f"    - {len(df)} rows, {len(df.columns)} columns")
         
-        if df.isnull().sum().sum() > 0:
-            print(f"    ⚠ Warning: Found {df.isnull().sum().sum()} null values")
+        null_count = df.isnull().sum().sum()
+        if null_count > 0:
+            raise ValueError(
+                f"{file}: found {null_count} null values across {df.isnull().any(axis=1).sum()} rows"
+            )
 
 
 def summarize_data(**context):

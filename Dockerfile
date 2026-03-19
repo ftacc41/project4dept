@@ -53,8 +53,8 @@ RUN mkdir -p /home/airflow/.dbt /home/airflow/.gcp
 COPY --chown=airflow:airflow dbt/profiles.yml /home/airflow/.dbt/profiles.yml
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8080')"
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD python -c "import requests; requests.get('http://localhost:8080/health').raise_for_status()"
 
 WORKDIR /home/airflow
 

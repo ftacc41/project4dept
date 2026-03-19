@@ -10,8 +10,14 @@ rules:
   - apiGroups: [""]
     resources: ["pods", "pods/log", "pods/exec"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Read-only on specific secrets — no write access to prevent a compromised pod
+  # from overwriting the GCP key or Fernet key
   - apiGroups: [""]
-    resources: ["secrets", "configmaps"]
+    resources: ["secrets"]
+    resourceNames: ["airflow-fernet-key", "airflow-gcp-key"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: ["batch"]
     resources: ["jobs"]

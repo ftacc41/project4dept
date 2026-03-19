@@ -10,7 +10,6 @@ Decoupled from daily scoring — train weekly, score daily.
 from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from airflow.utils.dates import days_ago
 import sys
 
 sys.path.insert(0, "/home/airflow/scripts")
@@ -29,7 +28,7 @@ dag = DAG(
     default_args=default_args,
     description="Phase 4: Weekly churn model retraining",
     schedule_interval="@weekly",
-    start_date=days_ago(1),
+    start_date=datetime(2024, 1, 1),
     tags=["phase-4", "ml", "train"],
     catchup=False,
 )

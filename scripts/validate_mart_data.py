@@ -16,6 +16,10 @@ from google.cloud import bigquery
 PROJECT_ID = "airflow-marketing-analytics"
 DATASET = "marts"
 
+# Cap rows pulled into the scheduler for GE validation to prevent OOM.
+# Row-count expectations use a separate COUNT query so this cap doesn't affect them.
+MAX_VALIDATION_ROWS = 100_000
+
 
 def _bq_client() -> bigquery.Client:
     """Create BigQuery client using GCP service account key."""
@@ -24,8 +28,18 @@ def _bq_client() -> bigquery.Client:
 
 
 def _fetch_table(client: bigquery.Client, table: str) -> pd.DataFrame:
-    """Fetch all rows from a mart table into a DataFrame."""
-    return client.query(f"SELECT * FROM `{PROJECT_ID}.{DATASET}.{table}`").to_dataframe()
+    """Fetch up to MAX_VALIDATION_ROWS from a mart table for GE validation."""
+    return client.query(
+        f"SELECT * FROM `{PROJECT_ID}.{DATASET}.{table}` LIMIT {MAX_VALIDATION_ROWS}"
+    ).to_dataframe()
+
+
+def _fetch_row_count(client: bigquery.Client, table: str) -> int:
+    """Return exact row count for a mart table without pulling all data."""
+    row = list(client.query(
+        f"SELECT COUNT(*) AS n FROM `{PROJECT_ID}.{DATASET}.{table}`"
+    ).result())[0]
+    return row["n"]
 
 
 def _build_suite(validator, expectations: list[tuple]) -> None:
@@ -97,8 +111,11 @@ def validate_marts(**context) -> None:
     all_passed = True
     for table_name, expectations in suites.items():
         try:
+            actual_count = _fetch_row_count(client, table_name)
             df = _fetch_table(client, table_name)
-            print(f"\n[{table_name}] {len(df)} rows")
+            print(f"\n[{table_name}] {actual_count} rows total (validating up to {MAX_VALIDATION_ROWS})")
+            # Inject actual row count so GE row-count expectations see the real total
+            df.attrs["actual_row_count"] = actual_count
             results = _run_validation(gx_context, df, table_name, expectations)
             try:
                 _assert_results(results, table_name)

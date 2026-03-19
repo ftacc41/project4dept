@@ -109,3 +109,33 @@ Schema tests (30 total) in each layer's `schema.yml`. BigQuery auth via service 
 - **Service account key**: `~/.config/gcloud/airflow-dbt-sa-key.json` locally; mounted as K8s secret in cluster
 - **GE (Great Expectations)**: uses `EphemeralDataContext` — no filesystem setup needed
 - **dbt venv**: `/home/airflow/dbt-venv` isolated from Airflow's Python env; `DBT_BIN` env var points to it
+
+## Known Issues & Technical Debt
+
+### CRITICAL
+1. **`EXPOSE_CONFIG=True` in docker-compose.yml:L86** — Airflow webserver exposes full config (Fernet key, DB creds) at `/config`. Must be set to `"False"` before any non-local deployment.
+2. **K8s Fernet key is not read from secret** — `deployment.yaml:L48` injects `{{ .Values.airflow.fernetKey }}` as a plain env var, which defaults to `""`. The comment in `values.yaml` says "set via secretKeyRef" but the template doesn't do this. Fernet key must be wired to a `secretKeyRef` pointing to `airflow-fernet-key`.
+3. **RBAC grants write on all secrets/configmaps** (`rbac.yaml:L14-15`) — Airflow service account can create/update/delete any secret in the namespace, including the GCP key and Fernet key. Should be read-only and scoped to specific secret names.
+4. **Unsafe pickle deserialization** (`score_churn_model.py:L56`) — `joblib.load(MODEL_PATH)` loads without integrity check. A malicious file on the PVC means arbitrary code execution in the scheduler pod.
+
+### HIGH
+5. **Hardcoded default credentials** — Postgres `airflow/airflow`, Airflow `admin/admin`, Grafana `admin/admin` in docker-compose and Helm values. Fine locally; dangerous if the chart is deployed as-is to a real cluster.
+6. **Fernet fallback is a broken literal** (`docker-compose.yml:L52`) — `${AIRFLOW_FERNET_KEY:-REDACTED_FERNET_KEY}` is not a valid Fernet key and will crash at runtime if `.env` is missing. Should have no default (fail fast).
+7. **Unbounded `SELECT *` will OOM scheduler at scale** — `validate_mart_data.py:L28` and `score_churn_model.py:L37-46` pull full tables into DataFrames with no LIMIT. Will hit the 1.5Gi scheduler memory ceiling as data grows.
+8. **No K8s NetworkPolicies** — All pods can reach each other and external endpoints freely. No restriction on inter-pod traffic or egress.
+
+### MEDIUM
+9. **`days_ago(1)` is deprecated and non-deterministic** (`marketing_data_extract_load.py:L53`, `marketing_data_ml_scoring.py:L33`) — Recalculates on every scheduler restart. Use a fixed `datetime(2024, 1, 1)` instead.
+10. **Null check in `validate_data_files` warns but doesn't gate** (`marketing_data_extract_load.py:L82-83`) — Null values are logged as a warning but the task succeeds. GE catches this later but the inconsistency is misleading.
+11. **No `max_value` on `order_amount` GE expectation** (`validate_raw_data.py:L81`) — Only `min_value: 0` is checked; unrealistic values (e.g. $1B) pass silently.
+12. **Failure emails point to `admin@example.com`** (`marketing_data_extract_load.py:L39`) — `email_on_failure: True` but the address is a dead end. Either configure SMTP + real address or set to `False`.
+13. **Redis is running but unused** (`docker-compose.yml:L21-33`) — LocalExecutor doesn't use Redis. Unnecessary attack surface and memory usage.
+14. **Healthcheck ignores HTTP status code** (`Dockerfile:L57`) — `requests.get(...)` succeeds even on `500`. Should use `.raise_for_status()` or hit `/health`.
+
+### LOW
+15. **`__import__` pattern in DAG tasks** — Import errors only surface at task runtime, not at DAG parse time. Direct top-level imports would catch errors earlier.
+16. **`hostPath` mounts hardcoded to one machine** (`values.yaml:L28-40`) — `/Users/macbook/Desktop/...` paths break for any other developer or CI environment.
+17. **`git` installed in runtime image** (`Dockerfile:L26`) — Not used at runtime; adds attack surface and image size.
+18. **Unused placeholder DAGs parsed every cycle** — `marketing_data_k8s_executor.py` and `marketing_data_transform.py` are parsed by the scheduler indefinitely. Move to `archive/` outside the DAGs folder.
+19. **`np.random.seed(42)` makes every run produce identical data** (`generate_data.py:L25`) — Intentional for demo purposes but means daily runs always overwrite BQ with the same records.
+20. **Model metadata silently ignored if missing** (`score_churn_model.py:L81-84`) — If `churn_model_metadata.json` doesn't exist, `model_trained_at` is `None` in predictions with no warning logged.
