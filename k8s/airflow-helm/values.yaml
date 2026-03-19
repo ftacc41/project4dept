@@ -3,11 +3,12 @@
 
 # Airflow Configuration
 airflow:
-  # Airflow image
+  # Airflow image — built and pushed by CI to GHCR on every push to main
+  # Local Minikube builds still use: eval $(minikube docker-env) && docker build -t airflow-custom:latest .
   image:
-    repository: airflow_project-airflow-webserver
+    repository: ghcr.io/ftacc41/project4dept
     tag: latest
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
 
   # Executor: Local for Minikube (KubernetesExecutor requires shared PVC/git-sync)
   executor: LocalExecutor

@@ -97,6 +97,29 @@ kubectl port-forward svc/airflow-prometheus 9090:9090 -n airflow-project
 
 ## 🔜 Potential next phases
 
-- **Phase 7**: CI/CD (GitHub Actions: rebuild image + redeploy on push to main)
+- [x] Phase 7: CI/CD (GitHub Actions: validate DAGs + Helm lint + build & push to GHCR)
+
+---
+
+## Phase 7 Infrastructure
+
+- **Workflow**: `.github/workflows/ci.yml` — two jobs triggered on push/PR to main
+  - `validate`: DAG syntax check (`py_compile`) + `helm lint` — runs on every push and PR
+  - `build-push`: builds image, pushes to `ghcr.io/ftacc41/project4dept` with `latest` + `sha-<short>` tags — runs on push to main only
+- **Registry**: GHCR — uses automatic `GITHUB_TOKEN`, no extra secrets needed
+- **Image tags**: `latest` (rolling) + `sha-<commit>` (pinnable for rollback)
+- **Build cache**: GitHub Actions cache (`type=gha`) speeds up repeat builds
+- **Dockerfile**: removed `.env*` COPY — `.env` now injected at runtime only (docker-compose volume / K8s Secret)
+- **Deploy**: CI does not auto-deploy to Minikube (no network access to local cluster). After a push, pull the new image manually:
+  ```bash
+  eval $(minikube docker-env)
+  docker pull ghcr.io/ftacc41/project4dept:latest
+  helm upgrade airflow k8s/airflow-helm/ -n airflow-project
+  kubectl rollout restart deployment airflow-scheduler airflow-webserver -n airflow-project
+  ```
+
+## 🔜 Potential next phases
+
+- **Wrap-up**: README polish, architecture diagram, Looker Studio dashboard
 - **Viz**: Looker Studio or Metabase dashboard on mart tables
 - **Wrap-up**: README polish, architecture diagram

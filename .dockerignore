@@ -1,0 +1,39 @@
+# Secrets — never bake into image
+.env
+.env.local
+*.env
+
+# Local dev artifacts
+logs/
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# ML model artifacts
+*.pkl
+*.joblib
+models/artifacts/
+
+# Data files
+data/
+*.csv
+*.parquet
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Git
+.git/
+.gitignore
+
+# Docs
+*.md
+docs/
+
+# Tests (not needed in the image)
+tests/

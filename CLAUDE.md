@@ -59,6 +59,14 @@ cd dbt/marketing_analytics
 CLOUDSDK_PYTHON=/opt/homebrew/bin/python3.13 gcloud ...
 ```
 
+## CI/CD (Phase 7)
+
+Workflow at [.github/workflows/ci.yml](.github/workflows/ci.yml):
+- **Every push/PR**: DAG syntax check (`py_compile`) + `helm lint`
+- **Push to main only**: builds and pushes image to `ghcr.io/ftacc41/project4dept` (`:latest` + `:sha-<short>`)
+
+No secrets needed beyond the automatic `GITHUB_TOKEN`. The pipeline does **not** auto-deploy to Minikube — after a push, run `helm upgrade` manually (see NEXT_STEPS.md).
+
 ## DAG Architecture
 
 **DAGs are baked into the Docker image** (not hostPath mounted). Every DAG change requires a full image rebuild and `kubectl rollout restart`. After deploying, wait ~60s before triggering — the scheduler needs time to re-serialize the task graph.
