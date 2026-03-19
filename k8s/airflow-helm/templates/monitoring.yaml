@@ -1,0 +1,307 @@
+{{- if .Values.monitoring.enabled }}
+---
+# StatsD Exporter: receives Airflow StatsD metrics, exposes as Prometheus /metrics
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "airflow-helm.fullname" . }}-statsd-exporter
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "airflow-helm.labels" . | nindent 4 }}
+    component: statsd-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "airflow-helm.selectorLabels" . | nindent 6 }}
+      component: statsd-exporter
+  template:
+    metadata:
+      labels:
+        {{- include "airflow-helm.labels" . | nindent 8 }}
+        component: statsd-exporter
+    spec:
+      containers:
+        - name: statsd-exporter
+          image: prom/statsd-exporter:v0.26.0
+          args:
+            - "--statsd.mapping-config=/etc/statsd/mapping.yml"
+            - "--statsd.listen-udp=:8125"
+            - "--web.listen-address=:9102"
+          ports:
+            - name: statsd-udp
+              containerPort: 8125
+              protocol: UDP
+            - name: metrics
+              containerPort: 9102
+              protocol: TCP
+          volumeMounts:
+            - name: statsd-mapping
+              mountPath: /etc/statsd
+      volumes:
+        - name: statsd-mapping
+          configMap:
+            name: {{ include "airflow-helm.fullname" . }}-statsd-mapping
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "airflow-helm.fullname" . }}-statsd-exporter
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "airflow-helm.labels" . | nindent 4 }}
+    component: statsd-exporter
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "airflow-helm.selectorLabels" . | nindent 4 }}
+    component: statsd-exporter
+  ports:
+    - name: statsd-udp
+      port: 8125
+      protocol: UDP
+    - name: metrics
+      port: 9102
+      protocol: TCP
+---
+# ConfigMap for StatsD exporter metric mapping rules
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "airflow-helm.fullname" . }}-statsd-mapping
+  namespace: {{ .Release.Namespace }}
+data:
+  mapping.yml: |
+    mappings:
+      - match: "airflow.dagrun.duration.success.*"
+        name: "airflow_dagrun_duration_success_seconds"
+        labels:
+          dag_id: "$1"
+      - match: "airflow.dagrun.duration.failed.*"
+        name: "airflow_dagrun_duration_failed_seconds"
+        labels:
+          dag_id: "$1"
+      - match: "airflow.dagrun.schedule_delay.*"
+        name: "airflow_dagrun_schedule_delay_seconds"
+        labels:
+          dag_id: "$1"
+      - match: "airflow.operator_successes_*"
+        name: "airflow_operator_successes_total"
+        labels:
+          operator: "$1"
+      - match: "airflow.operator_failures_*"
+        name: "airflow_operator_failures_total"
+        labels:
+          operator: "$1"
+      - match: "airflow.pool.open_slots.*"
+        name: "airflow_pool_open_slots"
+        labels:
+          pool: "$1"
+      - match: "airflow.pool.used_slots.*"
+        name: "airflow_pool_used_slots"
+        labels:
+          pool: "$1"
+      - match: "airflow.pool.starving_tasks.*"
+        name: "airflow_pool_starving_tasks"
+        labels:
+          pool: "$1"
+      - match: "airflow.*"
+        name: "airflow_$1"
+
+{{- if .Values.monitoring.prometheus.enabled }}
+---
+# Prometheus: scrapes statsd-exporter
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "airflow-helm.fullname" . }}-prometheus
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "airflow-helm.labels" . | nindent 4 }}
+    component: prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "airflow-helm.selectorLabels" . | nindent 6 }}
+      component: prometheus
+  template:
+    metadata:
+      labels:
+        {{- include "airflow-helm.labels" . | nindent 8 }}
+        component: prometheus
+    spec:
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.51.0
+          args:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.path=/prometheus"
+            - "--storage.tsdb.retention.time=7d"
+          ports:
+            - name: http
+              containerPort: 9090
+          volumeMounts:
+            - name: prometheus-config
+              mountPath: /etc/prometheus
+            - name: prometheus-data
+              mountPath: /prometheus
+      volumes:
+        - name: prometheus-config
+          configMap:
+            name: {{ include "airflow-helm.fullname" . }}-prometheus-config
+        - name: prometheus-data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "airflow-helm.fullname" . }}-prometheus
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "airflow-helm.labels" . | nindent 4 }}
+    component: prometheus
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "airflow-helm.selectorLabels" . | nindent 4 }}
+    component: prometheus
+  ports:
+    - name: http
+      port: 9090
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "airflow-helm.fullname" . }}-prometheus-config
+  namespace: {{ .Release.Namespace }}
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+    scrape_configs:
+      - job_name: 'airflow'
+        static_configs:
+          - targets: ['{{ include "airflow-helm.fullname" . }}-statsd-exporter:9102']
+        relabel_configs:
+          - target_label: instance
+            replacement: 'airflow'
+{{- end }}
+
+{{- if .Values.monitoring.grafana.enabled }}
+---
+# Grafana: pre-provisioned with Prometheus datasource and Airflow dashboard
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "airflow-helm.fullname" . }}-grafana
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "airflow-helm.labels" . | nindent 4 }}
+    component: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "airflow-helm.selectorLabels" . | nindent 6 }}
+      component: grafana
+  template:
+    metadata:
+      labels:
+        {{- include "airflow-helm.labels" . | nindent 8 }}
+        component: grafana
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:10.4.0
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              value: admin
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: admin
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+          volumeMounts:
+            - name: grafana-provisioning-datasources
+              mountPath: /etc/grafana/provisioning/datasources
+            - name: grafana-provisioning-dashboards
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: grafana-dashboards
+              mountPath: /var/lib/grafana/dashboards
+      volumes:
+        - name: grafana-provisioning-datasources
+          configMap:
+            name: {{ include "airflow-helm.fullname" . }}-grafana-datasources
+        - name: grafana-provisioning-dashboards
+          configMap:
+            name: {{ include "airflow-helm.fullname" . }}-grafana-dashboard-provider
+        - name: grafana-dashboards
+          configMap:
+            name: {{ include "airflow-helm.fullname" . }}-grafana-dashboards
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "airflow-helm.fullname" . }}-grafana
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "airflow-helm.labels" . | nindent 4 }}
+    component: grafana
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "airflow-helm.selectorLabels" . | nindent 4 }}
+    component: grafana
+  ports:
+    - name: http
+      port: 3000
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "airflow-helm.fullname" . }}-grafana-datasources
+  namespace: {{ .Release.Namespace }}
+data:
+  prometheus.yml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://{{ include "airflow-helm.fullname" . }}-prometheus:9090
+        uid: prometheus
+        isDefault: true
+        editable: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "airflow-helm.fullname" . }}-grafana-dashboard-provider
+  namespace: {{ .Release.Namespace }}
+data:
+  dashboards.yml: |
+    apiVersion: 1
+    providers:
+      - name: airflow
+        folder: Airflow
+        type: file
+        disableDeletion: true
+        updateIntervalSeconds: 30
+        options:
+          path: /var/lib/grafana/dashboards
+---
+# Dashboard JSON loaded from files/airflow-dashboard.json via Helm Files.Get
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "airflow-helm.fullname" . }}-grafana-dashboards
+  namespace: {{ .Release.Namespace }}
+data:
+  airflow.json: |
+    {{- .Files.Get "files/airflow-dashboard.json" | nindent 4 }}
+{{- end }}
+{{- end }}

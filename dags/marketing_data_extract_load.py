@@ -1,7 +1,8 @@
 """
-Phase 1 + 3: Extract, Load, and Transform DAG
+Phase 1 + 3 + 6: Extract, Load, Transform, and Monitor DAG
 Generates synthetic marketing data, loads it to BigQuery raw layer,
-then triggers dbt to build staging views and mart tables.
+triggers dbt to build staging views and mart tables, then scores the churn model.
+SLA is set to 2 hours; misses are logged and emitted as StatsD metrics.
 """
 
 from datetime import datetime, timedelta
@@ -12,8 +13,23 @@ from airflow.utils.dates import days_ago
 import pandas as pd
 from pathlib import Path
 import sys
+import logging
 
 sys.path.insert(0, "/home/airflow/scripts")
+
+log = logging.getLogger(__name__)
+
+
+def sla_miss_callback(dag, task_list, blocking_task_list, slas, blocking_tis):
+    """Log SLA misses; Airflow also auto-emits airflow.sla_miss to StatsD."""
+    missed = ", ".join(str(sla.task_id) for sla in slas)
+    log.warning(
+        "SLA MISS on DAG '%s' — tasks: [%s]. "
+        "Blocking tasks: %s",
+        dag.dag_id,
+        missed,
+        ", ".join(str(ti.task_id) for ti in blocking_tis),
+    )
 
 
 # Default DAG arguments
@@ -25,17 +41,19 @@ default_args = {
     'email_on_retry': False,
     'retries': 2,
     'retry_delay': timedelta(minutes=5),
+    'sla': timedelta(hours=2),
 }
 
 # DAG definition
 dag = DAG(
     'marketing_data_extract_load',
     default_args=default_args,
-    description='Phase 1: Extract and load synthetic marketing data',
-    schedule_interval='@daily',  # Run daily
+    description='Phase 1 + 6: Extract, load, transform, and monitor marketing data',
+    schedule_interval='@daily',
     start_date=days_ago(1),
-    tags=['phase-1', 'extract', 'load'],
+    tags=['phase-1', 'extract', 'load', 'monitoring'],
     catchup=False,
+    sla_miss_callback=sla_miss_callback,
 )
 
 

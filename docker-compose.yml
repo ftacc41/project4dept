@@ -52,6 +52,10 @@ services:
       AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-REDACTED_FERNET_KEY}
       AIRFLOW__CORE__LOAD_DEFAULT_CONNECTIONS: "False"
       AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: 300
+      AIRFLOW__METRICS__STATSD_ON: "True"
+      AIRFLOW__METRICS__STATSD_HOST: statsd-exporter
+      AIRFLOW__METRICS__STATSD_PORT: "8125"
+      AIRFLOW__METRICS__STATSD_PREFIX: airflow
     volumes:
       - ./dags:/home/airflow/airflow/dags
       - ./plugins:/home/airflow/airflow/plugins
@@ -80,6 +84,10 @@ services:
       AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
       AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-REDACTED_FERNET_KEY}
       AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "True"
+      AIRFLOW__METRICS__STATSD_ON: "True"
+      AIRFLOW__METRICS__STATSD_HOST: statsd-exporter
+      AIRFLOW__METRICS__STATSD_PORT: "8125"
+      AIRFLOW__METRICS__STATSD_PREFIX: airflow
     volumes:
       - ./dags:/home/airflow/airflow/dags
       - ./plugins:/home/airflow/airflow/plugins
@@ -115,9 +123,61 @@ services:
     networks:
       - airflow-network
 
+  # StatsD exporter: receives Airflow StatsD metrics and exposes as Prometheus /metrics
+  statsd-exporter:
+    image: prom/statsd-exporter:v0.26.0
+    container_name: statsd-exporter
+    command:
+      - "--statsd.mapping-config=/etc/statsd/mapping.yml"
+      - "--statsd.listen-udp=:8125"
+      - "--web.listen-address=:9102"
+    ports:
+      - "9102:9102"
+    volumes:
+      - ./monitoring/statsd-exporter-mapping.yml:/etc/statsd/mapping.yml:ro
+    networks:
+      - airflow-network
+
+  # Prometheus: scrapes statsd-exporter every 15s
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=7d"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-volume:/prometheus
+    networks:
+      - airflow-network
+
+  # Grafana: pre-provisioned with Prometheus datasource and Airflow dashboard
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-volume:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - airflow-network
+
 volumes:
   postgres-volume:
   redis-volume:
+  prometheus-volume:
+  grafana-volume:
 
 networks:
   airflow-network:
