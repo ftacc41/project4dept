@@ -1,312 +1,203 @@
-# 📊 Marketing Analytics Platform — Production-Grade Data Pipeline
+# Marketing Analytics Platform
 
-**Portfolio Project for DEPT® Interview**
-
-A complete end-to-end data engineering solution demonstrating enterprise architecture patterns:
-- **Orchestration**: Apache Airflow with Kubernetes executor
-- **Containerization**: Docker multi-stage builds + Helm charts
-- **Data Modeling**: dbt with star schema & data quality tests
-- **Analytics**: Customer segmentation, RFM analysis, churn prediction ML
-- **Deployment**: Local K8s (Minikube) + production patterns
+An end-to-end data engineering pipeline built with Airflow, dbt, BigQuery, Kubernetes, and ML — covering orchestration, transformation, data quality, machine learning, monitoring, and CI/CD.
 
 ---
 
-## 🎯 Project Goals
+## What It Does
 
-✅ Showcase **Airflow** expertise (DEPT®'s core orchestration tool)  
-✅ Demonstrate **Kubernetes** deployment capability (production-grade ops)  
-✅ Show **dbt** mastery (analytics engineering best practices)  
-✅ Build end-to-end pipeline (**discovery → delivery**)  
-✅ Zero cost (local + free cloud tiers only)  
-✅ Production-quality code (tests, docs, monitoring)
+Ingests synthetic marketing data (customers, orders, GA4-style events) through a fully automated daily pipeline that cleans, transforms, and models the data in BigQuery, trains a churn prediction model weekly, and exposes pipeline health metrics in Grafana.
+
+**Pipeline (daily):**
+```
+generate_data → validate_files → summarize → GE Layer A
+  → load_to_bigquery → dbt run → dbt test → GE Layer C → churn_score
+```
+
+**ML retraining (weekly):** XGBoost trained on `mart_customer_ltv`, saved to a persistent volume, scored daily against the full customer base.
 
 ---
 
-## 🚀 Quick Start
+## Stack
 
-### Prerequisites
-- Docker Desktop
-- 4GB+ RAM
-- macOS/Linux/WSL2
+| Layer | Tool |
+|---|---|
+| Orchestration | Apache Airflow 2.8 (LocalExecutor) |
+| Containerization | Docker (multi-stage build) |
+| Kubernetes | Minikube + Helm |
+| Data Warehouse | BigQuery (GCP) |
+| Transformation | dbt (staging views + mart tables) |
+| Data Quality | Great Expectations + dbt schema tests |
+| ML | XGBoost, scikit-learn |
+| Monitoring | Prometheus + Grafana (StatsD exporter) |
+| CI/CD | GitHub Actions + GHCR |
 
-### Setup (5 minutes)
+---
+
+## Architecture
+
+```
+Synthetic Data (CSV)
+        │
+        ▼
+  Airflow DAG (daily)
+        │
+        ├── Great Expectations (Layer A) — validates raw CSVs
+        │
+        ├── BigQuery raw dataset
+        │
+        ├── dbt
+        │     ├── staging/  (views)   — stg_customers, stg_orders, stg_events, stg_churn_labels
+        │     └── marts/    (tables)  — mart_customer_ltv, mart_churn_summary, mart_campaign_performance
+        │
+        ├── Great Expectations (Layer C) — validates mart tables
+        │
+        └── Churn scoring → marts.ml_churn_predictions
+
+  Airflow DAG (weekly)
+        └── XGBoost training → /models/churn_model.pkl (PVC)
+
+  Metrics
+        └── Airflow StatsD → statsd-exporter → Prometheus → Grafana
+```
+
+---
+
+## Quick Start (Docker Compose)
+
+**Prerequisites:** Docker Desktop, 4GB+ RAM
 
 ```bash
-# Clone/navigate to project
-cd airflow_project
+git clone https://github.com/ftacc41/project4dept.git
+cd project4dept
 
-# Copy environment
 cp .env.example .env
+# Fill in AIRFLOW_FERNET_KEY and BigQuery credentials
 
-# Start Airflow
 docker-compose up -d
-
-# Access UI
-open http://localhost:8080  # admin / admin
 ```
 
-See [Phase 1 Setup Guide](docs/PHASE_1_SETUP.md) for detailed instructions.
+| Service | URL | Credentials |
+|---|---|---|
+| Airflow | http://localhost:8080 | admin / admin |
+| Grafana | http://localhost:3000 | admin / admin |
+| Prometheus | http://localhost:9090 | — |
 
 ---
 
-## 📋 Roadmap
+## Kubernetes Deployment (Minikube)
 
-| Phase | Timeline | Focus | Status |
-|-------|----------|-------|--------|
-| **1** | Week 1-2 | Airflow + Docker foundation | 🟡 In Progress |
-| **2** | Week 2-3 | Kubernetes + Helm deployment | ⏳ Planned |
-| **3** | Week 3-4 | BigQuery + dbt transforms | ⏳ Planned |
-| **4** | Week 4-5 | ML churn prediction | ⏳ Planned |
-| **5** | Week 5-7 | Production patterns & tests | ⏳ Planned |
-| **6** | Week 7-8 | Polish & interview prep | ⏳ Planned |
+```bash
+# Build image inside Minikube's Docker daemon
+eval $(minikube docker-env)
+docker build -t airflow-custom:latest .
 
-### Current Phase: Phase 1 — Foundation
+# Deploy
+helm upgrade --install airflow k8s/airflow-helm/ -n airflow-project
 
-- Airflow running locally (Docker Compose)
-- Synthetic data generator (GA4-like events)
-- First DAG: extract → validate → summarize
-- PostgreSQL backend
-- [View Phase 1 Details →](docs/PHASE_1_SETUP.md)
-
----
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Data Sources (Synthetic)                  │
-│  GA4 Events | CRM Data | Customer Masters | Order Data       │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-                ┌────────▼─────────┐
-                │   Airflow DAGs   │
-                │  (Orchestration) │
-                ├──────────────────┤
-                │ • Extract layer  │
-                │ • Load pipeline  │
-                │ • Transform mgmt │
-                │ • ML scoring     │
-                └─────────┬────────┘
-                         │
-        ┌────────────────┼────────────────┐
-        │                │                │
-  ┌─────▼──────┐  ┌──────▼──────┐  ┌─────▼──────┐
-  │  Staging    │  │  Analytics  │  │    ML      │
-  │  (Raw Data) │  │  (Marts)    │  │  (Scores)  │
-  └─────┬──────┘  └──────┬──────┘  └─────┬──────┘
-        │                │                │
-        └────────────────┼────────────────┘
-                         │
-             ┌───────────▼──────────┐
-             │   BigQuery Warehouse │
-             │  (Analytics Engine)  │
-             ├──────────────────────┤
-             │ • star schema        │
-             │ • dimensional tables │
-             │ • facts tables       │
-             │ • metrics            │
-             └──────────────────────┘
-                         │
-        ┌────────────────┼────────────────┐
-        │                │                │
-  ┌─────▼──────┐  ┌──────▼──────┐  ┌─────▼──────┐
-  │ Dashboard  │  │  Reports    │  │ ML Models  │
-  │ (Looker)   │  │ (Analytics) │  │ (Scoring)  │
-  └────────────┘  └─────────────┘  └────────────┘
+# Access
+kubectl port-forward svc/airflow-webserver 8080:8080 -n airflow-project
+kubectl port-forward svc/airflow-grafana 3000:3000 -n airflow-project
 ```
 
 ---
 
-## 📁 Project Structure
+## dbt Models
+
+**Staging** (`staging` dataset — views, built from raw BigQuery tables):
+
+| Model | Description |
+|---|---|
+| `stg_customers` | Cleaned customer master with segment and region |
+| `stg_orders` | Cleaned orders with status normalization |
+| `stg_events` | GA4-style events with timestamp parsing |
+| `stg_churn_labels` | Labeled churn outcomes for ML |
+
+**Marts** (`marts` dataset — tables, analytics-ready):
+
+| Model | Description |
+|---|---|
+| `mart_customer_ltv` | Customer LTV, order history, churn label — primary ML input |
+| `mart_churn_summary` | Churn rates aggregated by segment and region |
+| `mart_campaign_performance` | Campaign ROI by campaign and channel |
+
+30 schema tests across both layers covering uniqueness, nullability, and referential integrity.
+
+---
+
+## Data Quality
+
+Two Great Expectations validation layers baked into the daily DAG:
+
+- **Layer A** (pre-load): validates row counts, nulls, and data types on raw CSVs before they touch BigQuery
+- **Layer C** (post-transform): validates mart tables for freshness, key cardinality, and expected value ranges after dbt runs
+
+Uses `EphemeralDataContext` — no filesystem setup required in containers.
+
+---
+
+## ML Pipeline
+
+- **Training** (weekly DAG): reads `mart_customer_ltv` from BigQuery, engineers features, trains XGBoost classifier, writes model + metadata to a Kubernetes PVC (`ml-models-pvc`)
+- **Scoring** (daily DAG, final task): loads the persisted model, scores all customers, writes predictions to `marts.ml_churn_predictions`
+- Decoupled train/score so a broken training run doesn't block daily scoring
+
+---
+
+## Monitoring
+
+Airflow emits StatsD metrics natively. The monitoring stack translates and visualizes them:
 
 ```
-airflow_project/
+Airflow → StatsD (UDP 8125) → statsd-exporter → Prometheus → Grafana
+```
+
+Pre-provisioned Grafana dashboard covers: scheduler heartbeat, SLA misses, task success/failure rates, DAG run duration, schedule delay, and pool slot usage.
+
+SLA on the daily DAG is set to 2 hours. Misses are logged and surface as `airflow_sla_miss_total` in Prometheus.
+
+---
+
+## CI/CD
+
+GitHub Actions workflow (`.github/workflows/ci.yml`):
+
+- **On every push and PR:** DAG syntax check (`py_compile`) + `helm lint`
+- **On push to main:** builds Docker image, pushes to `ghcr.io/ftacc41/project4dept` with `latest` and `sha-<commit>` tags
+
+Uses GitHub's built-in `GITHUB_TOKEN` — no extra secrets required. Build layer caching via GitHub Actions cache.
+
+---
+
+## Project Structure
+
+```
 ├── dags/
-│   ├── marketing_data_extract_load.py         # Phase 1: Extract → Load
-│   ├── marketing_data_transform.py            # Phase 3: dbt integration
-│   └── marketing_data_ml_scoring.py           # Phase 4: ML predictions
+│   ├── marketing_data_extract_load.py   # Daily 9-task pipeline
+│   └── marketing_data_ml_scoring.py     # Weekly XGBoost training
 ├── dbt/
-│   ├── models/
-│   │   ├── staging/                           # Raw data cleaning
-│   │   ├── marts/                             # Analytics-ready tables
-│   │   └── ml/                                # ML feature tables
-│   ├── tests/                                 # Data quality tests
-│   ├── dbt_project.yml
-│   └── profiles.yml
+│   └── marketing_analytics/
+│       ├── models/staging/              # 4 staging views
+│       ├── models/marts/                # 3 mart tables
+│       └── macros/                      # Schema routing macro
 ├── scripts/
-│   ├── generate_data.py                       # Synthetic data generator
-│   ├── train_churn_model.py                   # ML training
-│   └── utils/
-├── k8s/
-│   ├── airflow-helm/                          # Airflow Helm chart
-│   ├── minikube-setup.sh                      # Minikube initialization
-│   └── monitoring/                            # Prometheus + Grafana
-├── tests/
-│   ├── unit/                                  # Unit tests
-│   ├── integration/                           # Integration tests
-│   └── dags/                                  # DAG tests
-├── docs/
-│   ├── PHASE_1_SETUP.md                       # Phase 1 guide
-│   ├── ARCHITECTURE.md                        # Design decisions
-│   ├── RUNBOOK.md                             # Operations guide
-│   └── ADR/                                   # Architecture Decision Records
-├── .github/
-│   └── workflows/                             # GitHub Actions CI/CD
-├── docker-compose.yml                         # Local Airflow setup
-├── Dockerfile                                 # Custom Airflow image
-├── requirements.txt                           # Python dependencies
-├── .env.example                               # Environment template
-├── .gitignore
-└── README.md                                  # This file
+│   ├── generate_data.py                 # Synthetic data generation
+│   ├── load_to_bigquery.py              # CSV → BigQuery raw
+│   ├── train_churn_model.py             # XGBoost training
+│   ├── score_churn_model.py             # Batch scoring
+│   ├── validate_raw_data.py             # GE Layer A
+│   └── validate_mart_data.py            # GE Layer C
+├── k8s/airflow-helm/                    # Helm chart (Airflow + monitoring)
+├── monitoring/                          # Prometheus, Grafana, StatsD config
+├── .github/workflows/ci.yml             # GitHub Actions CI/CD
+├── Dockerfile                           # Multi-stage Airflow image
+└── docker-compose.yml                   # Local dev (8 services)
 ```
 
 ---
 
-## 🛠️ Tech Stack (Zero Cost)
+## GCP Setup
 
-| Layer | Component | Choice |
-|-------|-----------|--------|
-| **Orchestration** | Airflow | Apache Airflow 2.8 |
-| **Container Runtime** | Docker | Docker Engine |
-| **Kubernetes** | K8s Local | Minikube |
-| **Infrastructure as Code** | Helm | Helm Charts |
-| **Data Warehouse** | Cloud SQL | BigQuery (free tier) |
-| **Data Transform** | dbt | dbt-core + dbt-bigquery |
-| **Data Quality** | Testing | Great Expectations |
-| **ML** | Modeling | scikit-learn / XGBoost |
-| **Monitoring** | Observability | Prometheus + Grafana |
-| **CI/CD** | Automation | GitHub Actions |
-| **Version Control** | Git | GitHub |
-
-**Total Cost**: $0 (local dev + free cloud tiers)
-
----
-
-## 📊 Use Cases Demonstrated
-
-### 1. Customer Segmentation (RFM Analysis)
-- Recency, Frequency, Monetary scoring
-- Segment customers into tiers
-- Identify high-value at-risk customers
-
-### 2. Churn Prediction (ML)
-- Feature engineering (activity, spending, engagement)
-- Logistic Regression / XGBoost model
-- Daily batch scoring production pipeline
-
-### 3. Analytics Dashboard
-- Customer acquisition trends
-- Revenue metrics by segment
-- Product performance
-
-### 4. Data Quality
-- Automated test suite via dbt + Great Expectations
-- SLA monitoring in Airflow
-- Data freshness checks
-
----
-
-## 🎯 Interview Talking Points
-
-### Airflow Expertise
-*"In this project, I used Airflow's Kubernetes executor to run containerized tasks, enabling horizontal scaling without infrastructure provisioning. I implemented retry logic, SLA monitoring, and dynamic DAG generation for flexibility."*
-
-### Kubernetes/DevOps
-*"I containerized the entire pipeline with multi-stage Docker builds for efficiency, then deployed to Minikube locally using Helm charts. This demonstrates I understand infrastructure-as-code and production container orchestration."*
-
-### Data Engineering
-*"I designed a star schema with fact tables (orders) and dimensions (customers, dates), implemented with dbt for reproducibility and lineage. All transformations are idempotent and tested."*
-
-### Analytics Thinking
-*"I engineered RFM features to segment customers, built a churn prediction model from scratch, and automated batch scoring integrated into the orchestration pipeline."*
-
-### Production Mindset
-*"I included data quality gates, comprehensive logging, CI/CD automation, runbooks for operations, and architecture decision records (ADRs) documenting key choices."*
-
----
-
-## 🧪 Testing
-
-```bash
-# Install test dependencies
-pip install -r requirements.txt pytest
-
-# Run unit tests
-pytest tests/unit/
-
-# Run integration tests
-pytest tests/integration/
-
-# Test DAG structure (no execution)
-python -c "from dags import *; print('DAGs loaded successfully')"
-
-# Validate dbt models
-cd dbt && dbt parse
-```
-
----
-
-## 📈 Performance Notes
-
-- **Data Volume**: 1K customers, 50K events, ~5K orders per day (realistic for demo)
-- **Pipeline Time**: ~2-3 minutes end-to-end (local)
-- **Storage**: ~200MB (CSV staging) + warehouse queries
-- **Cost**: $0 (within BigQuery free tier)
-
----
-
-## 🚨 Troubleshooting
-
-### Airflow UI not accessible
-```bash
-docker-compose logs airflow-webserver | tail -50
-docker-compose restart airflow-webserver
-```
-
-### DAGs not appearing
-```bash
-# DAG parsing takes 5 minutes, check logs
-docker-compose logs airflow-scheduler | grep "Scanning"
-```
-
-### Out of memory
-```bash
-# Increase Docker resources: Preferences → Resources → Memory
-```
-
-See [Phase 1 Guide](docs/PHASE_1_SETUP.md#-troubleshooting) for more.
-
----
-
-## 📚 Documentation
-
-- [Phase 1: Foundation Setup](docs/PHASE_1_SETUP.md)
-- [Architecture & Design](docs/ARCHITECTURE.md) *(coming Phase 2)*
-- [Operations Runbook](docs/RUNBOOK.md) *(coming Phase 5)*
-- [ADR: Architecture Decisions](docs/ADR.md) *(coming Phase 5)*
-
----
-
-## 🤝 Contributing
-
-This is a portfolio project. Feedback welcome!
-
----
-
-## 📞 Contact
-
-**Interview Portfolio by**: [Your Name]  
-**DEPT® Role**: Senior Data Analyst  
-**Project**: Marketing Analytics Platform  
-**Built**: March 2026
-
----
-
-## 📄 License
-
-MIT (open source for portfolio purposes)
-
----
-
-**Status**: 🟡 Phase 1 in progress | Next: Phase 2 (K8s deployment)  
-**Last Updated**: 2026-03-17
+- **Project**: `airflow-marketing-analytics`
+- **Datasets**: `raw`, `staging`, `marts` (US region)
+- **Auth**: service account key mounted as K8s secret (`airflow-gcp-key`) or local `.env`
